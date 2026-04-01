@@ -12,11 +12,11 @@ if not TOKEN:
 # Command Handlers
 # -------------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hello! I'm alive 🚀")
+    await update.message.reply_text("Hello! SAIL-CMO Welcomes you!! ")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
-        "I am your Telegram bot 🤖\n\n"
+        "I am your Telegram bot for downloading your documents \n\n"
         "/start - Start the bot\n"
         "/help - Show this message\n"
         "/ping - Check if bot is alive"
