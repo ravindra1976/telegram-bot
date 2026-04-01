@@ -1,7 +1,7 @@
 import os
 import asyncio
 import csv
-from telegram import Update, InputFile, KeyboardButton, ReplyKeyboardMarkup
+from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
 # -------------------------
@@ -12,7 +12,7 @@ if not TOKEN:
     raise ValueError("BOT_TOKEN environment variable is missing!")
 
 # -------------------------
-# Load valid numbers from CSV
+# Load valid numbers
 # -------------------------
 def load_valid_numbers(file_path="valid_numbers.csv"):
     if not os.path.exists(file_path):
@@ -23,82 +23,87 @@ def load_valid_numbers(file_path="valid_numbers.csv"):
 VALID_NUMBERS = load_valid_numbers()
 
 # -------------------------
-# Global flags and tracking
+# Bot state
 # -------------------------
 BOT_ACTIVE = True
-USER_PENDING_AUTH = {}  # track which user is waiting to share number
+USER_PENDING_AUTH = {}  # user_id -> waiting for mobile
 
 # -------------------------
-# Command handlers
+# Command Handlers
 # -------------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hello! I'm alive 🚀")
+    global BOT_ACTIVE
+    BOT_ACTIVE = True
+    await update.message.reply_text(
+        "Welcome Guest, This allow you to download your documents. Use /help to know more."
+    )
 
-# Stop bot (admin only optional)
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global BOT_ACTIVE
     BOT_ACTIVE = False
-    await update.message.reply_text("Bot is now stopped ⛔")
-
-# Resume bot
-async def resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global BOT_ACTIVE
-    BOT_ACTIVE = True
-    await update.message.reply_text("Bot resumed ✅")
-
-# /get command → request phone number
-async def get_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not BOT_ACTIVE:
-        return
-
-    user_id = update.message.from_user.id
-
-    # Ask user to share phone number
-    button = KeyboardButton("Share Phone Number", request_contact=True)
-    reply_markup = ReplyKeyboardMarkup([[button]], resize_keyboard=True, one_time_keyboard=True)
-
-    USER_PENDING_AUTH[user_id] = True  # mark user as pending auth
     await update.message.reply_text(
-        "Please share your mobile number to access the document:",
-        reply_markup=reply_markup
+        "Bye. This BOT stopped now. You can anytime start using /START command."
     )
 
-# Handle phone number shared by user
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    help_text = (
+        "/start - Start the bot\n"
+        "/stop - Stop the bot\n"
+        "/help - Show this help message\n"
+        "/get - Get access to your document (mobile verification)"
+    )
+    await update.message.reply_text(help_text)
+
+async def get(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not BOT_ACTIVE:
+        return
+    user_id = update.message.from_user.id
+    USER_PENDING_AUTH[user_id] = True
+
+    # Ask user to share mobile number
+    button = KeyboardButton("Share Mobile Number", request_contact=True)
+    markup = ReplyKeyboardMarkup([[button]], resize_keyboard=True, one_time_keyboard=True)
+
+    await update.message.reply_text(
+        "Please share your mobile number to access the document.",
+        reply_markup=markup
+    )
+
+# -------------------------
+# Handle mobile number
+# -------------------------
 async def handle_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not BOT_ACTIVE:
         return
 
     user_id = update.message.from_user.id
+    if not USER_PENDING_AUTH.get(user_id):
+        return
 
-    if USER_PENDING_AUTH.get(user_id):
-        contact = update.message.contact
-        phone = contact.phone_number
+    contact = update.message.contact
+    phone = contact.phone_number
 
-        # Normalize phone numbers if needed
-        if phone.startswith("0"):
-            phone = "+91" + phone[1:]  # example for India
+    # Normalize if needed (example India)
+    if phone.startswith("0"):
+        phone = "+91" + phone[1:]
 
-        if phone in VALID_NUMBERS:
-            file_path = "sample.pdf"
-            if os.path.exists(file_path):
-                await update.message.reply_document(document=InputFile(file_path))
-            else:
-                await update.message.reply_text("PDF not found ❌")
-        else:
-            await update.message.reply_text("Your number is not authorized ❌")
+    if phone in VALID_NUMBERS:
+        await update.message.reply_text("✅ Mobile number verified. Access granted.")
+    else:
+        await update.message.reply_text("❌ Mobile number not valid. Access denied.")
 
-        # Remove from pending
-        USER_PENDING_AUTH.pop(user_id, None)
+    # Remove pending state
+    USER_PENDING_AUTH.pop(user_id, None)
 
 # -------------------------
-# Build the bot application
+# Build bot application
 # -------------------------
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("stop", stop))
-app.add_handler(CommandHandler("resume", resume))
-app.add_handler(CommandHandler("get", get_pdf))
+app.add_handler(CommandHandler("help", help_command))
+app.add_handler(CommandHandler("get", get))
 app.add_handler(MessageHandler(filters.CONTACT, handle_contact))
 
 # -------------------------
