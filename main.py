@@ -2,7 +2,7 @@ import os
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-TOKEN = os.getenv("TOKEN")
+TOKEN = os.getenv("BIT_TOKEN")
 
 # TOKEN = os.getenv("6591994405:AAFSYBd9f-td2kIHxb583_oGqMEBSqv1rww")
 
